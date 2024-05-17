@@ -4,7 +4,7 @@ use tokio::io::AsyncBufRead;
 
 pub mod backend;
 
-pub trait Backend<R: AsyncBufRead, E: snafu::Error> {
+pub trait Backend<R: AsyncBufRead + Sized, E: snafu::Error + Sized> {
     fn upload<P: AsRef<Path>>(
         &self,
         reader: &mut R,
