@@ -1,11 +1,12 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::StatusCode;
 use snafu::ResultExt;
-use tokio::io::{AsyncReadExt as _, AsyncSeek, AsyncSeekExt, BufReader};
+use tokio::io::{AsyncReadExt as _, AsyncSeekExt};
 
-use crate::Backend;
+use crate::{AsyncBufReadSeek, Backend};
 
 /// The maximum file size that can be uploaded to OneDrive.  
 /// 250 GB
@@ -18,28 +19,27 @@ use super::{
     CreateDirSnafu, CreateUploadSessionRequestSnafu, Error, GetParentIdSnafu, OnedriveInner,
     ReadFileSnafu, UploadFileSessionRequestSnafu, UploadFileSnafu,
 };
-use tokio::io::AsyncRead;
-impl<T> Backend<BufReader<T>, Error> for OnedriveInner
-where
-    T: AsyncRead + std::marker::Unpin + AsyncSeek,
-{
-    async fn upload<P: AsRef<Path>>(
+
+#[async_trait]
+impl Backend for OnedriveInner {
+    async fn upload(
         &self,
-        reader: &mut BufReader<T>,
+        reader: &mut (dyn AsyncBufReadSeek),
         size: u64,
-        path: P,
-    ) -> Result<(), Error> {
+        path: PathBuf,
+    ) -> Result<(), Box<dyn snafu::Error>> {
         if size > MAX_FILE_LIMIT {
             return Err(Error::FileTooLarge {
-                file: path.as_ref().to_string_lossy().to_string(),
+                file: path.to_string_lossy().to_string(),
                 size: u64_to_size_string(size),
-            });
+            }
+            .into());
         }
 
         if size < CHUNK_SIZE {
-            self.upload_file(reader, size, path).await?
+            self.upload_file(reader.into(), size, &path).await?
         } else {
-            self.upload_file_with_session(reader, size, path).await?
+            self.upload_file_with_session(reader, size, &path).await?
         }
 
         Ok(())
@@ -60,11 +60,11 @@ pub struct UploadSession {
 }
 
 impl OnedriveInner {
-    async fn upload_file<P: AsRef<Path>>(
+    async fn upload_file(
         &self,
-        reader: &mut BufReader<impl AsyncRead + AsyncSeek + std::marker::Unpin>,
+        reader: &mut dyn AsyncBufReadSeek,
         size: u64,
-        path: P,
+        path: &Path,
     ) -> Result<(), Error> {
         let (parent_id, file_name) = self.calu_path(path).await?;
 
@@ -98,11 +98,11 @@ impl OnedriveInner {
         }
     }
 
-    async fn upload_file_with_session<P: AsRef<Path>>(
+    async fn upload_file_with_session(
         &self,
-        reader: &mut BufReader<impl AsyncRead + AsyncSeek + std::marker::Unpin>,
+        reader: &mut dyn AsyncBufReadSeek,
         size: u64,
-        path: P,
+        path: &Path,
     ) -> Result<(), Error> {
         let session = self.create_session(path).await?;
         if session.expiration_date_time < Utc::now() {
@@ -145,7 +145,7 @@ impl OnedriveInner {
     async fn upload_session(
         &self,
         url: &str,
-        reader: &mut BufReader<impl AsyncRead + AsyncSeek + std::marker::Unpin>,
+        reader: &mut dyn AsyncBufReadSeek,
         size: u64,
         start_pos: u64,
     ) -> Result<Option<UploadSession>, Error> {
@@ -197,10 +197,7 @@ impl OnedriveInner {
         }
     }
 
-    async fn create_session<P: AsRef<Path>>(
-        &self,
-        path: P,
-    ) -> Result<FirstUploadSessionResponse, Error> {
+    async fn create_session(&self, path: &Path) -> Result<FirstUploadSessionResponse, Error> {
         let (parent_id, file_name) = self.calu_path(path).await?;
 
         let url = format!(
@@ -237,8 +234,8 @@ impl OnedriveInner {
         }
     }
 
-    async fn get_parent_id<P: AsRef<Path>>(&self, folder: P) -> Result<String, Error> {
-        let forder_str = folder.as_ref().to_string_lossy();
+    async fn get_parent_id(&self, folder: &Path) -> Result<String, Error> {
+        let forder_str = folder.to_string_lossy();
         let url = if forder_str == "/" {
             format!("{}/me/drive/root", self.api_type.get_graph_url())
         } else {
@@ -255,7 +252,7 @@ impl OnedriveInner {
             .send()
             .await
             .with_context(|_| GetParentIdSnafu {
-                path: folder.as_ref().to_string_lossy().to_string(),
+                path: folder.to_string_lossy().to_string(),
             })?;
 
         match response.status() {
@@ -264,7 +261,7 @@ impl OnedriveInner {
                     .json::<serde_json::Value>()
                     .await
                     .with_context(|_| GetParentIdSnafu {
-                        path: folder.as_ref().to_string_lossy().to_string(),
+                        path: folder.to_string_lossy().to_string(),
                     })?;
 
                 let folder_id =
@@ -278,15 +275,15 @@ impl OnedriveInner {
             }
             reqwest::StatusCode::NOT_FOUND => Box::pin(self.create_folder(folder)).await,
             _ => Err(Error::GetParentId {
-                path: folder.as_ref().to_string_lossy().to_string(),
+                path: folder.to_string_lossy().to_string(),
                 source: response.error_for_status().unwrap_err(),
             }),
         }
     }
 
-    async fn create_folder<P: AsRef<Path>>(&self, folder: P) -> Result<String, Error> {
-        let parent = folder.as_ref().parent().ok_or(Error::InvalidPath {
-            path: folder.as_ref().to_string_lossy().to_string(),
+    async fn create_folder(&self, folder: &Path) -> Result<String, Error> {
+        let parent = folder.parent().ok_or(Error::InvalidPath {
+            path: folder.to_string_lossy().to_string(),
         })?;
         let parent_id = self.get_parent_id(parent).await?;
 
@@ -300,14 +297,14 @@ impl OnedriveInner {
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.access_token))
             .json(&serde_json::json!({
-                "name": folder.as_ref().file_name().unwrap().to_string_lossy(),
+                "name": folder.file_name().unwrap().to_string_lossy(),
                 "folder": {},
                 "@microsoft.graph.conflictBehavior": "rename",
             }))
             .send()
             .await
             .with_context(|_| CreateDirSnafu {
-                path: folder.as_ref().to_string_lossy().to_string(),
+                path: folder.to_string_lossy().to_string(),
             })?;
 
         match response.status() {
@@ -316,7 +313,7 @@ impl OnedriveInner {
                     .json::<serde_json::Value>()
                     .await
                     .with_context(|_| GetParentIdSnafu {
-                        path: folder.as_ref().to_string_lossy().to_string(),
+                        path: folder.to_string_lossy().to_string(),
                     })?;
 
                 let folder_id =
@@ -330,16 +327,16 @@ impl OnedriveInner {
             }
             StatusCode::NOT_FOUND => Box::pin(self.create_folder(parent)).await,
             _ => Err(Error::CreateDir {
-                path: folder.as_ref().to_string_lossy().to_string(),
+                path: folder.to_string_lossy().to_string(),
                 source: response.error_for_status().unwrap_err(),
             }),
         }
     }
 
-    async fn calu_path(&self, path: impl AsRef<Path>) -> Result<(String, String), Error> {
-        if path.as_ref().has_root() {
+    async fn calu_path(&self, path: &Path) -> Result<(String, String), Error> {
+        if path.has_root() {
             return Err(Error::InvalidPath {
-                path: path.as_ref().to_string_lossy().to_string(),
+                path: path.to_string_lossy().to_string(),
             });
         }
         let path = self.folder.join(path);

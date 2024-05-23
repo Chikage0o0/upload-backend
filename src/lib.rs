@@ -1,14 +1,25 @@
-use std::{future::Future, path::Path};
+use std::path::PathBuf;
 
-use tokio::io::AsyncBufRead;
+use async_trait::async_trait;
 
 pub mod backend;
 
-pub trait Backend<R: AsyncBufRead + Sized, E: snafu::Error + Sized> {
-    fn upload<P: AsRef<Path>>(
+pub trait AsyncBufReadSeek:
+    tokio::io::AsyncRead + tokio::io::AsyncSeek + Unpin + Send + Sync
+{
+}
+
+impl<T> AsyncBufReadSeek for T where
+    T: tokio::io::AsyncRead + tokio::io::AsyncSeek + Unpin + Send + Sync
+{
+}
+
+#[async_trait]
+pub trait Backend {
+    async fn upload(
         &self,
-        reader: &mut R,
+        reader: &mut dyn AsyncBufReadSeek,
         size: u64,
-        path: P,
-    ) -> impl Future<Output = Result<(), E>>;
+        path: PathBuf,
+    ) -> Result<(), Box<dyn snafu::Error>>;
 }

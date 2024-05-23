@@ -5,11 +5,11 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
+use async_trait::async_trait;
 use snafu::Snafu;
-use tokio::io::{AsyncRead, AsyncSeek, BufReader};
 use tracing::{debug, warn};
 
-use crate::Backend;
+use crate::{AsyncBufReadSeek, Backend};
 
 pub mod auth;
 pub mod upload;
@@ -44,17 +44,15 @@ impl Drop for Onedrive {
     }
 }
 
-impl<T> Backend<BufReader<T>, Error> for Onedrive
-where
-    T: AsyncRead + std::marker::Unpin + AsyncSeek,
-{
-    async fn upload<P: AsRef<Path>>(
+#[async_trait]
+impl Backend for Onedrive {
+    async fn upload(
         &self,
-        reader: &mut BufReader<T>,
+        reader: &mut dyn AsyncBufReadSeek,
         size: u64,
-        path: P,
-    ) -> Result<(), Error> {
-        debug!("Uploading file to onedrive: {:?}", path.as_ref());
+        path: PathBuf,
+    ) -> Result<(), Box<dyn snafu::Error>> {
+        debug!("Uploading file to onedrive: {:?}", &path);
         self.inner.upload(reader, size, path).await
     }
 }
