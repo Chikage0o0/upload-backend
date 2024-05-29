@@ -15,7 +15,7 @@ impl<T> AsyncBufReadSeek for T where
 }
 
 #[async_trait]
-pub trait Backend {
+pub trait Backend: Send + Sync {
     async fn upload(
         &self,
         reader: &mut dyn AsyncBufReadSeek,
