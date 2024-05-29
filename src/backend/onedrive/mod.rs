@@ -130,7 +130,7 @@ fn refresh_handle(inner: Arc<OnedriveInner>) -> tokio::task::JoinHandle<()> {
     })
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ApiType {
     Common,
     Consumers,
