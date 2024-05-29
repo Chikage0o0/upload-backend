@@ -6,6 +6,7 @@ use std::{
 
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 use tracing::{debug, warn};
 
@@ -130,7 +131,7 @@ fn refresh_handle(inner: Arc<OnedriveInner>) -> tokio::task::JoinHandle<()> {
     })
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ApiType {
     Common,
     Consumers,
