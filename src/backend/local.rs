@@ -34,14 +34,30 @@ impl Backend for Local {
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent)
                 .await
-                .context(CreateDirSnafu)?;
+                .with_context(|_| CreateDirSnafu {
+                    msg: parent.to_string_lossy().to_string(),
+                })?;
+        }
+
+        if path.exists() {
+            tokio::fs::remove_file(&path)
+                .await
+                .with_context(|_| CreateFileSnafu {
+                    msg: path.to_string_lossy().to_string(),
+                })?;
         }
 
         // Create the file and copy the data
-        let mut file = File::create(path).await.context(CreateFileSnafu)?;
+        let mut file = File::create(&path)
+            .await
+            .with_context(|_| CreateFileSnafu {
+                msg: path.to_string_lossy().to_string(),
+            })?;
         tokio::io::copy(reader, &mut file)
             .await
-            .context(CopyDataSnafu)?;
+            .with_context(|_| CopyDataSnafu {
+                msg: path.to_string_lossy().to_string(),
+            })?;
 
         Ok(())
     }
@@ -49,14 +65,23 @@ impl Backend for Local {
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Failed to create directory: {}", source))]
-    CreateDir { source: tokio::io::Error },
+    #[snafu(display("Failed to create directory {}: {}", msg, source))]
+    CreateDir {
+        source: tokio::io::Error,
+        msg: String,
+    },
 
-    #[snafu(display("Failed to create file: {}", source))]
-    CreateFile { source: tokio::io::Error },
+    #[snafu(display("Failed to create file {}: {}", msg, source))]
+    CreateFile {
+        source: tokio::io::Error,
+        msg: String,
+    },
 
-    #[snafu(display("Failed to copy data: {}", source))]
-    CopyData { source: tokio::io::Error },
+    #[snafu(display("Failed to copy data to {}: {}", msg, source))]
+    CopyData {
+        source: tokio::io::Error,
+        msg: String,
+    },
 }
 
 #[cfg(test)]
