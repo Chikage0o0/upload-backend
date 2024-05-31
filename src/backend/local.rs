@@ -47,6 +47,8 @@ impl Backend for Local {
                 })?;
         }
 
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
         // Create the file and copy the data
         let mut file = File::create(&path)
             .await
