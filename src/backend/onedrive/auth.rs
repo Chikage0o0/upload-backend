@@ -135,10 +135,7 @@ impl OnedriveInner {
             .set_pkce_challenge(pkce_code_challenge)
             .url();
 
-        println!(
-            "Open this URL in your browser:\n{}\n",
-            authorize_url.to_string()
-        );
+        println!("Open this URL in your browser:\n{}\n", authorize_url);
 
         let (code, state) = {
             // A very naive implementation of the redirect server.

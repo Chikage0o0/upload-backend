@@ -37,7 +37,7 @@ impl Backend for OnedriveInner {
         }
 
         if size < CHUNK_SIZE {
-            self.upload_file(reader.into(), size, &path).await?
+            self.upload_file(reader, size, &path).await?
         } else {
             self.upload_file_with_session(reader, size, &path).await?
         }
