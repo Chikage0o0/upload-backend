@@ -13,7 +13,9 @@ reqwest = { version = "0.12.4", features = [
     "http2",
     "charset",
 ], default-features = false, optional = true }
-oauth2 = { version = "4", optional = true }
+oauth2 = { version = "4", optional = true, default-features = false, features = [
+    "rustls-tls",
+] }
 serde_json = { version = "1.0.117", optional = true }
 serde = { version = "1.0.202", features = ["derive"], optional = true }
 chrono = { version = "0.4.38", optional = true }
