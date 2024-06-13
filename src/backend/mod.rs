@@ -12,6 +12,6 @@ pub use onedrive::Onedrive;
 #[cfg(feature = "webdav")]
 mod webdav;
 #[cfg(feature = "webdav")]
-pub use reqwest_dav::Auth;
+pub use reqwest_dav::Auth as WebdavAuth;
 #[cfg(feature = "webdav")]
 pub use webdav::Webdav;
