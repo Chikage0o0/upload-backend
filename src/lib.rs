@@ -18,7 +18,7 @@ impl<T> AsyncBufReadSeek for T where
 pub trait Backend: Send + Sync {
     async fn upload(
         &self,
-        reader: &mut dyn AsyncBufReadSeek,
+        reader: Box<dyn AsyncBufReadSeek>,
         size: u64,
         path: PathBuf,
     ) -> Result<(), Box<dyn snafu::Error>>;

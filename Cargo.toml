@@ -12,6 +12,7 @@ reqwest = { version = "0.12.4", features = [
     "json",
     "http2",
     "charset",
+    "stream",
 ], default-features = false, optional = true }
 oauth2 = { version = "4", optional = true, default-features = false, features = [
     "rustls-tls",
@@ -21,6 +22,10 @@ serde = { version = "1.0.202", features = ["derive"], optional = true }
 chrono = { version = "0.4.38", optional = true }
 arc-swap = { version = "1.7.1", optional = true }
 tracing = "0.1.40"
+reqwest_dav = { version = "0.1.11", optional = true, default-features = false, features = [
+    "rustls-tls",
+] }
+tokio-util = "0.7.11"
 
 [dev-dependencies]
 temp-dir = "0.1.13"
@@ -29,5 +34,6 @@ tokio = { version = "1.37.0", features = ["full"] }
 [features]
 default = ["full"]
 
-full = ["onedrive"]
+full = ["onedrive", "webdav"]
 onedrive = ["reqwest", "oauth2", "serde_json", "serde", "chrono", "arc-swap"]
+webdav = ["reqwest_dav", "reqwest"]

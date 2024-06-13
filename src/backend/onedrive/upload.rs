@@ -24,7 +24,7 @@ use super::{
 impl Backend for OnedriveInner {
     async fn upload(
         &self,
-        reader: &mut (dyn AsyncBufReadSeek),
+        reader: Box<dyn AsyncBufReadSeek>,
         size: u64,
         path: PathBuf,
     ) -> Result<(), Box<dyn snafu::Error>> {
@@ -62,7 +62,7 @@ pub struct UploadSession {
 impl OnedriveInner {
     async fn upload_file(
         &self,
-        reader: &mut dyn AsyncBufReadSeek,
+        mut reader: Box<dyn AsyncBufReadSeek>,
         size: u64,
         path: &Path,
     ) -> Result<(), Error> {
@@ -100,7 +100,7 @@ impl OnedriveInner {
 
     async fn upload_file_with_session(
         &self,
-        reader: &mut dyn AsyncBufReadSeek,
+        mut reader: Box<dyn AsyncBufReadSeek>,
         size: u64,
         path: &Path,
     ) -> Result<(), Error> {
@@ -112,7 +112,7 @@ impl OnedriveInner {
         }
         let mut start_pos = 0;
         let mut uploading = self
-            .upload_session(&session.upload_url, reader, size, start_pos)
+            .upload_session(&session.upload_url, &mut reader, size, start_pos)
             .await?
             .ok_or(Error::UploadFileSession {
                 message: "Upload session expired".to_string(),
@@ -131,7 +131,7 @@ impl OnedriveInner {
 
             start_pos = range[0];
             let ret = self
-                .upload_session(&session.upload_url, reader, size, start_pos)
+                .upload_session(&session.upload_url, &mut reader, size, start_pos)
                 .await?;
             uploading = match ret {
                 Some(session) => session,

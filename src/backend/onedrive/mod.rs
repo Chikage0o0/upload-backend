@@ -49,7 +49,7 @@ impl Drop for Onedrive {
 impl Backend for Onedrive {
     async fn upload(
         &self,
-        reader: &mut dyn AsyncBufReadSeek,
+        reader: Box<dyn AsyncBufReadSeek>,
         size: u64,
         path: PathBuf,
     ) -> Result<(), Box<dyn snafu::Error>> {

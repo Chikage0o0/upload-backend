@@ -23,7 +23,7 @@ impl Local {
 impl Backend for Local {
     async fn upload(
         &self,
-        reader: &mut dyn AsyncBufReadSeek,
+        mut reader: Box<dyn AsyncBufReadSeek>,
         _size: u64,
         path: PathBuf,
     ) -> Result<(), Box<dyn snafu::Error>> {
@@ -55,7 +55,7 @@ impl Backend for Local {
             .with_context(|_| CreateFileSnafu {
                 msg: path.to_string_lossy().to_string(),
             })?;
-        tokio::io::copy(reader, &mut file)
+        tokio::io::copy(&mut reader, &mut file)
             .await
             .with_context(|_| CopyDataSnafu {
                 msg: path.to_string_lossy().to_string(),
@@ -115,9 +115,11 @@ mod tests {
 
         // Reopen the file for reading
         let file = File::open(folder.join("test.txt")).await.unwrap();
-        let mut reader = BufReader::new(file);
+        let reader = BufReader::new(file);
 
-        let result = local.upload(&mut reader, size, "test1.txt".into()).await;
+        let result = local
+            .upload(Box::new(reader), size, "test1.txt".into())
+            .await;
         assert!(result.is_ok());
     }
 }
