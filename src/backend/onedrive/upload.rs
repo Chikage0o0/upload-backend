@@ -211,7 +211,7 @@ impl OnedriveInner {
             .header("Authorization", format!("Bearer {}", self.access_token))
             .json(&serde_json::json!({
                "item": {
-                "@microsoft.graph.conflictBehavior": "rename"
+                "@microsoft.graph.conflictBehavior": "replace"
               },
               "deferCommit": false
             }))
@@ -299,7 +299,7 @@ impl OnedriveInner {
             .json(&serde_json::json!({
                 "name": folder.file_name().unwrap().to_string_lossy(),
                 "folder": {},
-                "@microsoft.graph.conflictBehavior": "rename",
+                "@microsoft.graph.conflictBehavior": "replace",
             }))
             .send()
             .await
